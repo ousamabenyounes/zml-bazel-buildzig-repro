@@ -1,0 +1,9 @@
+load("@rules_zig//zig:defs.bzl", "zig_shared_library")
+
+zig_shared_library(
+    name = "zml_repro_cabi",
+    main = "zml_repro_cabi.zig",
+    shared_lib_name = "libzml_repro_cabi.so",
+    visibility = ["//visibility:public"],
+    deps = ["//zml"],
+)
