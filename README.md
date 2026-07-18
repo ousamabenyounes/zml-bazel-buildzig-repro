@@ -18,24 +18,31 @@ explicit C ABI boundary:
 - The same Zig toolchain used by that checkout, or a compatible Zig on `PATH`.
 - Bazel or Bazelisk.
 
+The versions used for the published validation are recorded in `repro.lock`.
+
 ## Usage
 
 From this repository:
 
 ```sh
+scripts/prepare-zml.sh .work/zml
 zig build install-facade -Dzml-root=/path/to/zml
 zig build run -Dzml-root=/path/to/zml -Dbazel=/path/to/bazel
 zig build test -Dzml-root=/path/to/zml -Dbazel=/path/to/bazel --summary all
+zig build test-discovery-failure
 ```
 
 The `install-facade` step copies `facade/repro/cabi` into
 `$ZML_ROOT/repro/cabi`. Use a disposable or topic-branch ZML checkout.
+The `prepare-zml.sh` helper can create that disposable checkout for you at the
+commit recorded in `repro.lock`.
 
 Expected output:
 
 ```text
 ZML C ABI consumer OK: KiB=1024, MiB=1048576, logo_blocks=3, f32_size=4, shape_bytes=120
 Build Summary: 4/4 steps succeeded; 1/1 tests passed
+strict cquery discovery rejects missing and duplicate artifacts
 ```
 
 ## What this proves
@@ -45,6 +52,9 @@ Build Summary: 4/4 steps succeeded; 1/1 tests passed
 - A Zig consumer can link a staged Bazel-built C ABI facade.
 - The linked facade can call lightweight ZML APIs: constants, logo helpers,
   `DataType`, and `Shape`.
+- The staged directory includes a small manifest describing the discovered
+  artifact and intentionally empty runtime dependency list.
+- The artifact discovery logic rejects missing or duplicate `.so` candidates.
 
 ## What this does not prove
 

@@ -8,6 +8,7 @@ const ZML_REPRO_INCLUDE_REL = "repro/cabi";
 const ZML_REPRO_LIBRARY = "zml_repro_cabi";
 const ZML_REPRO_SHARED_LIBRARY = "libzml_repro_cabi.so";
 const ZML_REPRO_HEADER = "zml_repro_cabi.h";
+const ZML_REPRO_MANIFEST = "zml_repro_manifest.json";
 const CONSUMER_EXE_NAME = "zml-cabi-consumer";
 const CONSUMER_ROOT = "src/main.zig";
 const CONSUMER_CHECKS = "src/checks.zig";
@@ -36,6 +37,7 @@ const STAGE_BAZEL_ARTIFACT_SCRIPT =
     \\zml_root="$4"
     \\library_name="$5"
     \\header_rel="$6"
+    \\manifest_name="$7"
     \\case "$stage_dir" in
     \\  /*) ;;
     \\  *) stage_dir="$PWD/$stage_dir" ;;
@@ -51,12 +53,42 @@ const STAGE_BAZEL_ARTIFACT_SCRIPT =
     \\artifact="$matches"
     \\cp "$artifact" "$tmp_dir/lib/$library_name"
     \\cp "$header_rel" "$tmp_dir/include/"
+    \\zml_commit=$(git rev-parse HEAD 2>/dev/null || printf unknown)
+    \\cat > "$tmp_dir/$manifest_name" <<EOF
+    \\{
+    \\  "bazel_target": "$target",
+    \\  "library": "lib/$library_name",
+    \\  "header": "include/$(basename "$header_rel")",
+    \\  "source_artifact": "$artifact",
+    \\  "zml_root": "$zml_root",
+    \\  "zml_commit": "$zml_commit",
+    \\  "runtime_dependencies": []
+    \\}
+    \\EOF
     \\test -s "$tmp_dir/lib/$library_name"
     \\test -s "$tmp_dir/include/$(basename "$header_rel")"
+    \\test -s "$tmp_dir/$manifest_name"
     \\grep -q "zml_repro_shape_f32_bytes" "$tmp_dir/include/$(basename "$header_rel")"
+    \\grep -q "\"runtime_dependencies\"" "$tmp_dir/$manifest_name"
     \\rm -rf "$stage_dir"
     \\mv "$tmp_dir" "$stage_dir"
     \\trap - EXIT
+;
+
+const TEST_DISCOVERY_FAILURE_SCRIPT =
+    \\set -eu
+    \\library_name="$1"
+    \\duplicate=$(printf '%s\n%s\n' "bazel-bin/a/$library_name" "bazel-bin/b/$library_name")
+    \\missing=$(printf '%s\n' "bazel-bin/a/libother.so")
+    \\if printf '%s\n' "$duplicate" | awk -v name="$library_name" 'BEGIN { count=0 } $0 ~ "/" name "$" { print; count++ } END { if (count != 1) exit 42 }' >/dev/null; then
+    \\  echo "duplicate discovery unexpectedly succeeded" >&2
+    \\  exit 1
+    \\fi
+    \\if printf '%s\n' "$missing" | awk -v name="$library_name" 'BEGIN { count=0 } $0 ~ "/" name "$" { print; count++ } END { if (count != 1) exit 42 }' >/dev/null; then
+    \\  echo "missing discovery unexpectedly succeeded" >&2
+    \\  exit 1
+    \\fi
+    \\echo "strict cquery discovery rejects missing and duplicate artifacts"
 ;
 
 pub fn build(b: *std.Build) void {
@@ -90,6 +122,7 @@ pub fn build(b: *std.Build) void {
         zml_root,
         ZML_REPRO_SHARED_LIBRARY,
         zml_header_rel,
+        ZML_REPRO_MANIFEST,
     });
 
     const zml_include_dir = b.pathJoin(&.{ zml_stage_dir, "include" });
@@ -121,6 +154,17 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Build ZML with Bazel, then test the Zig consumer");
     test_step.dependOn(&run_tests.step);
+
+    const test_discovery_failure = b.addSystemCommand(&.{
+        "sh",
+        "-c",
+        TEST_DISCOVERY_FAILURE_SCRIPT,
+        "test-discovery-failure",
+        ZML_REPRO_SHARED_LIBRARY,
+    });
+
+    const test_discovery_failure_step = b.step("test-discovery-failure", "Verify strict artifact discovery rejects bad cquery output");
+    test_discovery_failure_step.dependOn(&test_discovery_failure.step);
 }
 
 fn createConsumerModule(
