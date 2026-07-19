@@ -60,30 +60,42 @@ const STAGE_BAZEL_ARTIFACT_SCRIPT =
     \\artifact="$matches"
     \\bazel_bin=$("$bazel" info bazel-bin)
     \\execution_root=$("$bazel" info execution_root)
+    \\needed_libraries_file=needed_libraries.txt
     \\cp "$artifact" "$tmp_dir/lib/$library_name"
     \\cp "$header_rel" "$tmp_dir/include/"
+    \\command -v readelf >/dev/null 2>&1 || { echo "missing readelf; install binutils to inspect ELF dependencies" >&2; exit 2; }
+    \\readelf -d "$artifact" | sed -n 's/.*Shared library: \[\(.*\)\].*/\1/p' | sort -u > "$tmp_dir/$needed_libraries_file"
+    \\needed_libraries_json=$(awk 'BEGIN { printf "[" } { printf "%s\"%s\"", sep, $0; sep=", " } END { print "]" }' "$tmp_dir/$needed_libraries_file")
+    \\runtime_dependencies_json="[\"$needed_libraries_file\"]"
     \\zml_commit=$(git rev-parse HEAD 2>/dev/null || printf unknown)
     \\cat > "$tmp_dir/$manifest_name" <<EOF
     \\{
     \\  "bazel_target": "$target",
     \\  "library": "lib/$library_name",
     \\  "header": "include/$(basename "$header_rel")",
+    \\  "needed_libraries_file": "$needed_libraries_file",
+    \\  "needed_libraries": $needed_libraries_json,
     \\  "source_artifact": "$artifact",
     \\  "candidate_outputs_file": "candidate_outputs.txt",
     \\  "bazel_bin": "$bazel_bin",
     \\  "execution_root": "$execution_root",
     \\  "zml_root": "$zml_root",
     \\  "zml_commit": "$zml_commit",
-    \\  "runtime_dependencies": []
+    \\  "runtime_dependencies": $runtime_dependencies_json
     \\}
     \\EOF
     \\test -s "$tmp_dir/lib/$library_name"
     \\test -s "$tmp_dir/include/$(basename "$header_rel")"
+    \\test -s "$tmp_dir/$needed_libraries_file"
     \\test -s "$tmp_dir/$manifest_name"
     \\test -s "$tmp_dir/candidate_outputs.txt"
     \\grep -q "zml_repro_shape_f32_bytes" "$tmp_dir/include/$(basename "$header_rel")"
+    \\grep -q "\"needed_libraries_file\"" "$tmp_dir/$manifest_name"
+    \\grep -q "\"needed_libraries\": \[" "$tmp_dir/$manifest_name"
     \\grep -q "\"candidate_outputs_file\"" "$tmp_dir/$manifest_name"
     \\grep -q "\"runtime_dependencies\"" "$tmp_dir/$manifest_name"
+    \\grep -q "\"runtime_dependencies\": \\[" "$tmp_dir/$manifest_name"
+    \\! grep -q "\"runtime_dependencies\": \\[\\]" "$tmp_dir/$manifest_name"
     \\rm -rf "$stage_dir"
     \\mv "$tmp_dir" "$stage_dir"
     \\trap - EXIT

@@ -1,5 +1,10 @@
 ZML_REPO=https://github.com/zml/zml.git
-ZML_COMMIT=78f1af2d7d2a5c8159c97758df8eee36cb49daa3
+ZML_COMMIT=9ecd60f4d496628b76e05ccc4b93b553ab5d19d1
+DOCKER_IMAGE=golang@sha256:298734aec230b5f3e8cee450ce6d7eccc39f1797ba548ee90d57e9803030c6c3
 ZIG_VERSION=0.16.0
+ZIG_TARBALL_URL=https://ziglang.org/download/0.16.0/zig-x86_64-linux-0.16.0.tar.xz
+ZIG_TARBALL_SHA256=70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00
 BAZELISK_VERSION=v1.25.0
+BAZELISK_URL=https://github.com/bazelbuild/bazelisk/releases/download/v1.25.0/bazelisk-linux-amd64
+BAZELISK_SHA256=fd8fdff418a1758887520fa42da7e6ae39aefc788cf5e7f7bb8db6934d279fc4
 BAZEL_VERSION=9.1.1
